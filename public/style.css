@@ -227,7 +227,7 @@ svg text { fill: currentColor; stroke: none; font: 700 7px sans-serif; }
 .d-poster { width: clamp(150px, 18vw, 300px); flex: none; border-radius: 18px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.6), 0 0 0 1px var(--line); aspect-ratio: 2/3; background: rgba(255,255,255,.06); }
 .d-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .d-info { min-width: 0; max-width: 760px; padding-bottom: 8px; }
-.d-series { color: var(--accent); font-weight: 700; margin-bottom: 6px; display: inline-block; }
+.d-series { color: var(--accent); font-weight: 700; margin-bottom: 6px; display: block; width: fit-content; }
 .d-info .hero-title { font-size: clamp(1.9em, 3.8vw, 3.6em); }
 .tagline { font-style: italic; color: var(--muted); margin: 10px 0 0; }
 .d-info .overview { -webkit-line-clamp: 5; }
@@ -240,8 +240,20 @@ svg text { fill: currentColor; stroke: none; font: 700 7px sans-serif; }
 .seasons { padding: 0 var(--pad); }
 .episodes { display: grid; gap: 10px; padding: 12px var(--pad) 0; }
 .ep { display: grid; grid-template-columns: clamp(150px, 20vw, 300px) 1fr; gap: clamp(12px, 1.6vw, 22px); align-items: center; padding: 10px; border-radius: 18px; transition: background .15s; }
-.ep:hover, .ep:focus-visible { background: rgba(255,255,255,.06); outline: none; }
-.ep:focus-visible { box-shadow: 0 0 0 3px var(--accent); }
+.ep:hover, .ep:has(:focus-visible) { background: rgba(255,255,255,.06); }
+.ep-thumb, .ep-text { display: block; min-width: 0; }
+.ep-thumb:focus-visible, .ep-text:focus-visible { outline: none; }
+.ep-thumb:focus-visible .art { box-shadow: 0 0 0 3px var(--accent), 0 12px 30px rgba(120,60,255,.4); }
+.ep-thumb:hover .play-hint, .ep-thumb:focus-visible .play-hint { opacity: 1; }
+.ep-text:focus-visible h3 { color: var(--accent); }
+.ep .play-hint { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transition: opacity .2s; background: rgba(10,4,24,.25); }
+@media (hover: none) { .ep .play-hint { opacity: 1; background: none; } .ep .play-hint span { width: 40px; height: 40px; } }
+.d-poster.wide { width: clamp(260px, 30vw, 560px); aspect-ratio: 16/9; position: relative; }
+.d-poster.wide .prog { position: absolute; left: 10px; right: 10px; bottom: 10px; height: 5px; border-radius: 5px; background: rgba(255,255,255,.25); overflow: hidden; }
+.d-poster.wide .prog i { display: block; height: 100%; background: var(--grad); }
+.d-series-logo { display: block; height: clamp(44px, 5vw, 70px); width: auto; max-width: min(300px, 70vw); object-fit: contain; object-position: left center; margin-bottom: 10px; filter: drop-shadow(0 3px 12px rgba(0,0,0,.6)); }
+.wide.current .art { box-shadow: 0 0 0 3px var(--accent-2), 0 12px 30px rgba(120,60,255,.35); }
+.wide.current .cap b::before { content: 'Now viewing · '; color: var(--accent-2); }
 .ep .art { aspect-ratio: 16/9; }
 .ep h3 { margin: 0 0 3px; font-size: 1.02em; }
 .ep .epmeta { color: var(--faint); font-size: .86em; margin-bottom: 5px; }

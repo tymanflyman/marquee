@@ -1,5 +1,5 @@
 // Caches the app shell only. Everything from Jellyfin always comes live through /jf.
-const CACHE = 'marquee-v5';
+const CACHE = 'marquee-v6';
 const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/icon.svg', '/manifest.webmanifest', '/vendor/hls.min.js'];
 
 self.addEventListener('install', (e) => {

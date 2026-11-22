@@ -301,6 +301,8 @@ async function renderItem(id, params) {
   if (it.IsFolder && !['Series'].includes(it.Type)) { location.replace(`#/library/${it.Id}`); return; }
   const series = it.Type === 'Series';
   const ep = it.Type === 'Episode';
+  // Episodes borrow the show's logo, genres and main cast.
+  const show = ep && it.SeriesId ? await api(`/Users/${U()}/Items/${it.SeriesId}`).catch(() => null) : null;
   // A series plays its next episode.
   let target = it;
   if (series) {
@@ -313,12 +315,21 @@ async function renderItem(id, params) {
   }
   const pos = ticks(target?.UserData?.PlaybackPositionTicks);
   const label = !target ? '' : pos > 0 ? `Resume ${clock(pos)}` : series ? `Play ${epCode(target)}` : 'Play';
-  const people = (it.People || []).filter((p) => ['Actor', 'GuestStar'].includes(p.Type)).slice(0, 24);
+  const actorsOf = (x) => (x?.People || []).filter((p) => p.Type === 'Actor');
+  let people = actorsOf(it);
+  if (ep && !people.length) people = actorsOf(show);
+  people = people.slice(0, 30);
+  const guests = (it.People || []).filter((p) => p.Type === 'GuestStar').slice(0, 30);
   const crew = (it.People || []).filter((p) => p.Type === 'Director' || p.Type === 'Writer');
   const extra = [];
-  if (it.Genres?.length) extra.push(['Genres', it.Genres.slice(0, 4).join(', ')]);
+  const personLinks = (list) => ({ html: list.map((p) => `<a class="link" href="#/person/${p.Id}">${esc(p.Name)}</a>`).join(', ') });
+  if (ep && it.PremiereDate) extra.push(['Aired', longDate(it.PremiereDate)]);
+  const genres = it.Genres?.length ? it.Genres : show?.Genres || [];
+  if (genres.length) extra.push(['Genres', genres.slice(0, 4).join(', ')]);
   const dirs = crew.filter((p) => p.Type === 'Director').slice(0, 3);
-  if (dirs.length) extra.push([dirs.length > 1 ? 'Directors' : 'Director', { html: dirs.map((p) => `<a class="link" href="#/person/${p.Id}">${esc(p.Name)}</a>`).join(', ') }]);
+  if (dirs.length) extra.push([dirs.length > 1 ? 'Directors' : 'Director', personLinks(dirs)]);
+  const writers = [...new Map(crew.filter((p) => p.Type === 'Writer').map((p) => [p.Id, p])).values()].slice(0, 3);
+  if (writers.length) extra.push([writers.length > 1 ? 'Writers' : 'Writer', personLinks(writers)]);
   if (it.Studios?.length) extra.push([series ? 'Network' : 'Studio', it.Studios.slice(0, 2).map((s) => s.Name).join(', ')]);
   const vs = (it.MediaStreams || []).find((s) => s.Type === 'Video');
   if (vs?.DisplayTitle) extra.push(['Video', vs.DisplayTitle]);
@@ -331,9 +342,9 @@ async function renderItem(id, params) {
   view.innerHTML = `<div class="detail">
     <div class="d-backdrop">${backdrop(it) ? `<img src="${backdrop(it)}" alt="">` : ''}</div>
     <div class="d-main">
-      <div class="d-poster">${imgTag(poster(it, 500), it.Name, it.Name)}</div>
+      ${ep ? `<div class="d-poster wide">${imgTag(thumb(it, 900), it.Name, it.Name)}${progressBar(it)}</div>` : `<div class="d-poster">${imgTag(poster(it, 500), it.Name, it.Name)}</div>`}
       <div class="d-info">
-        ${ep ? `<a class="d-series" href="#/item/${it.SeriesId}?season=${it.SeasonId || ''}">${esc(it.SeriesName)}</a>` : ''}
+        ${ep ? `<a class="d-series" href="#/item/${it.SeriesId}?season=${it.SeasonId || ''}">${show && logo(show, 400) ? `<img class="d-series-logo" src="${logo(show, 400)}" alt="${esc(it.SeriesName)}">` : esc(it.SeriesName)}</a>` : ''}
         ${!ep && logo(it) ? `<img class="hero-logo" src="${logo(it)}" alt="${esc(it.Name)}">` : `<h1 class="hero-title">${esc(it.Name)}</h1>`}
         ${factsHtml(it)}
         ${it.Taglines?.[0] ? `<p class="tagline">${esc(it.Taglines[0])}</p>` : ''}
@@ -348,7 +359,8 @@ async function renderItem(id, params) {
       </div>
     </div>
     ${series ? '<section class="section" id="seasons-sec"><div class="seasons"><div class="chips glass" id="seasons"></div></div><div class="episodes" id="episodes"></div></section>' : ''}
-    ${people.length ? `<section class="section"><h2>Cast</h2><div class="scroller">${people.map(personCard).join('')}</div></section>` : ''}
+    ${people.length ? `<section class="section"><h2>${ep ? 'Series Cast' : 'Cast'}</h2><div class="scroller">${people.map(personCard).join('')}</div></section>` : ''}
+    ${guests.length ? `<section class="section"><h2>Guest Stars</h2><div class="scroller">${guests.map(personCard).join('')}</div></section>` : ''}
     <div class="section" id="similar"></div>
   </div>`;
   $('#d-overview').addEventListener('click', (e) => e.currentTarget.classList.toggle('open'));
@@ -397,14 +409,21 @@ async function loadSeasons(series, pick) {
 }
 function episodeRow(e) {
   const meta = [`Episode ${e.IndexNumber ?? ''}`, runtime(e.RunTimeTicks), e.PremiereDate ? new Date(e.PremiereDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : ''].filter(Boolean).join(' · ');
-  return `<a class="ep" href="#/play/${e.Id}"><div class="art">${imgTag(thumb(e), e.Name, e.Name)}${tagHtml(e)}${progressBar(e)}<div class="play-hint"><span>${ICON.play}</span></div></div>
-    <div><h3>${e.IndexNumber != null ? e.IndexNumber + '. ' : ''}${esc(e.Name)}</h3><div class="epmeta">${meta}</div><p>${esc(e.Overview || '')}</p></div></a>`;
+  return `<div class="ep"><a class="ep-thumb" href="#/play/${e.Id}" aria-label="Play ${esc(e.Name)}"><div class="art">${imgTag(thumb(e), e.Name, e.Name)}${tagHtml(e)}${progressBar(e)}<div class="play-hint"><span>${ICON.play}</span></div></div></a>
+    <a class="ep-text" href="#/item/${e.Id}"><h3>${e.IndexNumber != null ? e.IndexNumber + '. ' : ''}${esc(e.Name)}</h3><div class="epmeta">${meta}</div><p>${esc(e.Overview || '')}</p></a></div>`;
 }
 async function loadEpisodeSiblings(ep) {
   if (!ep.SeasonId) return;
   const r = await api(`/Shows/${ep.SeriesId}/Episodes?${qs({ UserId: U(), SeasonId: ep.SeasonId, Fields: 'Overview' })}`).catch(() => null);
   const box = $('#similar');
-  if (box && r?.Items?.length) box.outerHTML = rowHtml(ep.SeasonName || 'Episodes', r.Items, 'wide');
+  if (!box || !r?.Items?.length) return;
+  box.outerHTML = rowHtml(`More from ${ep.SeasonName || 'this season'}`, r.Items, 'wide-info');
+  const cur = document.querySelector(`.wide[data-id="${ep.Id}"]`);
+  if (cur) {
+    cur.classList.add('current');
+    const sc = cur.closest('.scroller');
+    sc.scrollLeft = cur.offsetLeft - sc.offsetLeft - parseFloat(getComputedStyle(sc).paddingLeft || 0);
+  }
 }
 
 /* ---------- people ---------- */
