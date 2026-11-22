@@ -7,7 +7,7 @@ A custom front end for Jellyfin: cinematic layout, HomeDash's purple liquid glas
 - Works with a TV remote or keyboard: arrows move, Enter selects, Back goes back. In the player, left/right skip when the controls are hidden.
 - Runs on port 8098. Set `JELLYFIN_URL` to Jellyfin's address.
 
-Run locally: `JELLYFIN_URL=http://192.168.1.x:8097 node server.js`
+Run locally: `JELLYFIN_URL=http://192.168.1.x:8096 node server.js`
 
 `public/vendor/hls.min.js` is hls.js 1.7.4 (Apache-2.0), for streaming transcodes outside Safari.
 

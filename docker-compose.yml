@@ -10,8 +10,8 @@ services:
     ports:
       - "8098:8098"
     environment:
-      # Jellyfin's port on ZimaOS. Change to 8096 if you moved Jellyfin back to the default.
-      JELLYFIN_URL: http://host.docker.internal:8097
+      # Jellyfin's port on ZimaOS. Jellyfin on its default port.
+      JELLYFIN_URL: http://host.docker.internal:8096
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = Number(process.env.PORT || 8098);
-const JELLYFIN = new URL(process.env.JELLYFIN_URL || 'http://host.docker.internal:8097');
+const JELLYFIN = new URL(process.env.JELLYFIN_URL || 'http://host.docker.internal:8096');
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
