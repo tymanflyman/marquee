@@ -781,7 +781,8 @@ async function closePlayer(silent) {
   // Tell Jellyfin in the background; it can take a moment to save the position and stop the transcode.
   reportStop();
   stopHls();
-  P.item = null; P.source = null;
+  P.item = null; P.source = null; P.nextEp = null;
+  P.closedAt = Date.now();
   P.el.classList.remove('airplaying');
   P.el.classList.add('hidden');
   document.body.classList.remove('locked');
@@ -828,7 +829,7 @@ function showUpNext() {
   $('#un-play').addEventListener('click', playNext);
 }
 function playNext() {
-  if (!P.nextEp) return;
+  if (!P.nextEp || !playerOpen()) return;
   const id = P.nextEp.Id;
   reportStop();
   location.replace(`#/play/${id}`);
@@ -847,7 +848,15 @@ v.addEventListener('playing', () => { P.el.classList.remove('waiting', 'paused')
 v.addEventListener('canplay', () => P.el.classList.remove('waiting'));
 v.addEventListener('pause', () => { P.el.classList.add('paused'); poke(); reportProgress('Pause'); });
 v.addEventListener('play', () => { P.el.classList.remove('paused'); reportProgress('Unpause'); });
-v.addEventListener('ended', () => { if (P.nextEp) playNext(); else closePlayer(); });
+// Only a real finish counts. iPhones report "ended" when the player unloads the video on close,
+// which used to start the next episode right after you backed out.
+const playerOpen = () => !!P.item && !P.el.classList.contains('hidden');
+v.addEventListener('ended', () => {
+  if (!playerOpen() || !v.currentSrc) return;
+  const d = duration();
+  if (d && v.currentTime < d - 3) return;
+  if (P.nextEp) playNext(); else closePlayer();
+});
 v.addEventListener('error', () => { if (!P.hls && P.item && v.error) toast('Playback error — try a lower quality'); });
 const togglePlay = () => (v.paused ? v.play().catch(() => {}) : v.pause());
 $('#p-play').addEventListener('click', togglePlay);
@@ -1072,6 +1081,8 @@ $('#login-form').addEventListener('submit', async (e) => {
 
 /* ---------- router ---------- */
 let routeToken = 0;
+let lastInput = 0; // last tap, click or key press
+for (const t of ['pointerdown', 'keydown']) document.addEventListener(t, () => { lastInput = Date.now(); }, true);
 let routedHash = null; // the page currently shown
 let returnTo = null; // the last page that wasn't the player
 const currentHash = () => (location.hash && location.hash !== '#' ? location.hash : '#/');
@@ -1086,7 +1097,12 @@ async function route() {
   const parts = p.split('/').filter(Boolean);
   clearInterval(heroTimer);
   libObserver?.disconnect();
-  if (parts[0] === 'play') { await play(parts[1], params); return; }
+  if (parts[0] === 'play') {
+    // Safety net: never reopen the player by itself right after you closed it.
+    if (Date.now() - (P.closedAt || 0) < 2000 && Date.now() - lastInput > 1500) { location.replace(returnTo || '#/'); return; }
+    await play(parts[1], params);
+    return;
+  }
   if (!P.el.classList.contains('hidden')) await closePlayer(true);
   $('#user-menu').classList.add('hidden');
   window.scrollTo(0, 0);
