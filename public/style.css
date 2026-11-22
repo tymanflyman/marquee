@@ -252,6 +252,31 @@ svg text { fill: currentColor; stroke: none; font: 700 7px sans-serif; }
 .person b { display: block; font-size: .9em; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .person small { display: block; color: var(--faint); font-size: .8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---------- people ---------- */
+.link { color: var(--accent); }
+.link:hover { text-decoration: underline; }
+.pp-head { display: flex; gap: clamp(18px, 3vw, 44px); align-items: flex-end; margin-bottom: clamp(20px, 3vw, 36px); }
+.pp-photo { width: clamp(130px, 15vw, 240px); aspect-ratio: 2/3; flex: none; border-radius: 20px; overflow: hidden; position: relative; background: rgba(255,255,255,.06); box-shadow: 0 20px 50px rgba(0,0,0,.5), 0 0 0 1px var(--line); }
+.pp-photo img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .3s; }
+.pp-photo img.ok { opacity: 1; }
+.pp-photo .fallback { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2.4em; font-weight: 800; color: var(--muted); background: linear-gradient(160deg, rgba(139,92,246,.35), rgba(30,14,60,.6)); }
+.pp-info { min-width: 0; max-width: 820px; }
+.pp-info h1 { font-size: clamp(1.9em, 3.6vw, 3.4em); margin: 0 0 8px; letter-spacing: -.03em; }
+.pp-bio { -webkit-line-clamp: 4; cursor: pointer; }
+.pp-bio.open { -webkit-line-clamp: unset; }
+.pp-bio:empty { display: none; }
+.chips .n { opacity: .65; font-weight: 700; margin-left: 3px; font-size: .9em; }
+.pp-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 18px; }
+.card.missing .art img { filter: saturate(.75) brightness(.82); }
+.card.missing:hover .art img, .card.missing:focus-visible .art img { filter: none; }
+.attrib { color: var(--faint); font-size: .8em; margin-top: 30px; text-align: center; }
+@media (max-width: 760px) {
+  .pp-head { flex-direction: column; align-items: flex-start; }
+  .pp-photo { width: 120px; }
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 10px; }
+  .grid .cap small { font-size: .8em; }
+}
+
 /* ---------- search ---------- */
 .searchbox { display: flex; align-items: center; gap: 10px; padding: 0 18px; border-radius: 20px; margin-bottom: 22px; max-width: 720px; }
 .searchbox input { flex: 1; min-width: 0; padding: 15px 0; border: 0; background: none; font-size: 1.15em; }

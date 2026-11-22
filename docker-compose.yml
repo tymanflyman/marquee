@@ -16,6 +16,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - /DATA/AppData/marquee/app:/app:ro
+      # Holds tmdb-key for the full filmography on actor pages.
+      - /DATA/AppData/marquee/config:/config:ro
 
   # Checks GitHub every 5 minutes. The server restarts itself when new code lands.
   updater:

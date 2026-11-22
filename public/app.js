@@ -317,8 +317,8 @@ async function renderItem(id, params) {
   const crew = (it.People || []).filter((p) => p.Type === 'Director' || p.Type === 'Writer');
   const extra = [];
   if (it.Genres?.length) extra.push(['Genres', it.Genres.slice(0, 4).join(', ')]);
-  const dirs = crew.filter((p) => p.Type === 'Director').map((p) => p.Name);
-  if (dirs.length) extra.push([dirs.length > 1 ? 'Directors' : 'Director', dirs.slice(0, 3).join(', ')]);
+  const dirs = crew.filter((p) => p.Type === 'Director').slice(0, 3);
+  if (dirs.length) extra.push([dirs.length > 1 ? 'Directors' : 'Director', { html: dirs.map((p) => `<a class="link" href="#/person/${p.Id}">${esc(p.Name)}</a>`).join(', ') }]);
   if (it.Studios?.length) extra.push([series ? 'Network' : 'Studio', it.Studios.slice(0, 2).map((s) => s.Name).join(', ')]);
   const vs = (it.MediaStreams || []).find((s) => s.Type === 'Video');
   if (vs?.DisplayTitle) extra.push(['Video', vs.DisplayTitle]);
@@ -344,7 +344,7 @@ async function renderItem(id, params) {
           <button class="btn${played ? ' on' : ''}" id="d-played">${ICON.check}${played ? 'Watched' : 'Mark watched'}</button>
           <button class="btn${fav ? ' on' : ''}" id="d-fav" aria-label="Favorite">${ICON.heart}</button>
         </div>
-        ${extra.length ? `<dl class="d-extra">${extra.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+        ${extra.length ? `<dl class="d-extra">${extra.map(([k, v]) => `<dt>${k}</dt><dd>${v?.html ?? esc(v)}</dd>`).join('')}</dl>` : ''}
       </div>
     </div>
     ${series ? '<section class="section" id="seasons-sec"><div class="seasons"><div class="chips glass" id="seasons"></div></div><div class="episodes" id="episodes"></div></section>' : ''}
@@ -374,7 +374,7 @@ async function renderItem(id, params) {
 function personCard(p) {
   const src = p.PrimaryImageTag ? img(p.Id, 'Primary', { w: 200, tag: p.PrimaryImageTag }) : '';
   const initials = p.Name.split(' ').map((w) => w[0]).slice(0, 2).join('');
-  return `<a class="person" href="#/search?q=${encodeURIComponent(p.Name)}"><div class="art">${imgTag(src, initials, initials)}</div><b>${esc(p.Name)}</b><small>${esc(p.Role || '')}</small></a>`;
+  return `<a class="person" href="#/person/${p.Id}"><div class="art">${imgTag(src, initials, initials)}</div><b>${esc(p.Name)}</b><small>${esc(p.Role || '')}</small></a>`;
 }
 async function loadSeasons(series, pick) {
   const r = await api(`/Shows/${series.Id}/Seasons?${qs({ UserId: U(), Fields: 'ItemCounts' })}`);
@@ -405,6 +405,133 @@ async function loadEpisodeSiblings(ep) {
   const r = await api(`/Shows/${ep.SeriesId}/Episodes?${qs({ UserId: U(), SeasonId: ep.SeasonId, Fields: 'Overview' })}`).catch(() => null);
   const box = $('#similar');
   if (box && r?.Items?.length) box.outerHTML = rowHtml(ep.SeasonName || 'Episodes', r.Items, 'wide');
+}
+
+/* ---------- people ---------- */
+// Every movie and show in the library with its TMDB id, for marking what you own in a filmography.
+let ownedIndex = null;
+async function owned() {
+  if (ownedIndex && ownedIndex.at > Date.now() - 10 * 60e3) return ownedIndex.map;
+  const r = await api(`/Users/${U()}/Items?${qs({ IncludeItemTypes: 'Movie,Series', Recursive: true, Fields: 'ProviderIds', EnableImages: true, ImageTypeLimit: 1, EnableImageTypes: 'Primary', EnableUserData: true })}`);
+  const map = new Map();
+  for (const it of r.Items || []) {
+    const t = it.ProviderIds?.Tmdb || it.ProviderIds?.tmdb;
+    if (t) map.set((it.Type === 'Movie' ? 'movie' : 'tv') + t, it);
+  }
+  ownedIndex = { at: Date.now(), map };
+  return map;
+}
+function age(from, to) {
+  const a = new Date(from), b = to ? new Date(to) : new Date();
+  let y = b.getFullYear() - a.getFullYear();
+  if (b.getMonth() < a.getMonth() || (b.getMonth() === a.getMonth() && b.getDate() < a.getDate())) y--;
+  return y;
+}
+const longDate = (d) => new Date(d).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+async function renderPerson(id, params) {
+  setActive('');
+  view.innerHTML = '<div class="loading"><div class="spin"></div></div>';
+  const [p, mine] = await Promise.all([
+    api(`/Users/${U()}/Items/${id}`),
+    api(`/Users/${U()}/Items?${qs({ PersonIds: id, IncludeItemTypes: 'Movie,Series', Recursive: true, SortBy: 'PremiereDate,ProductionYear,SortName', SortOrder: 'Descending', Fields: LIST_FIELDS + ',ProviderIds' })}`).catch(() => ({ Items: [] })),
+  ]);
+  const libItems = mine.Items || [];
+  const photo = p.ImageTags?.Primary ? img(p.Id, 'Primary', { w: 400, tag: p.ImageTags.Primary }) : '';
+  const initials = p.Name.split(' ').map((w) => w[0]).slice(0, 2).join('');
+  const born = p.PremiereDate ? `Born ${longDate(p.PremiereDate)}${p.EndDate ? '' : ` (age ${age(p.PremiereDate)})`}` : '';
+  const died = p.EndDate ? `Died ${longDate(p.EndDate)}${p.PremiereDate ? ` (age ${age(p.PremiereDate, p.EndDate)})` : ''}` : '';
+  const place = p.ProductionLocations?.[0] || '';
+  const tab = params.get('tab') === 'all' ? 'all' : 'lib';
+  view.innerHTML = `<div class="page person-page">
+    <div class="pp-head">
+      <div class="pp-photo">${imgTag(photo, initials, initials)}</div>
+      <div class="pp-info">
+        <h1>${esc(p.Name)}</h1>
+        <div class="facts" id="pp-facts">${[born, died, place].filter(Boolean).map((f) => `<span>${esc(f)}</span>`).join('')}</div>
+        <p class="overview pp-bio" id="pp-bio">${esc(p.Overview || '')}</p>
+        <div class="actions">
+          <div class="chips glass" id="pp-tabs">
+            <button data-tab="lib" class="${tab === 'lib' ? 'on' : ''}">In your library <span class="n" id="pp-lib-n">${libItems.length}</span></button>
+            <button data-tab="all" class="${tab === 'all' ? 'on' : ''}">Full filmography</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="pp-body"></div>
+  </div>`;
+  $('#pp-bio').addEventListener('click', (e) => e.currentTarget.classList.toggle('open'));
+  const state = { tab, kind: null, film: null, filmP: null, libItems };
+  const ids = { tmdb: p.ProviderIds?.Tmdb || p.ProviderIds?.tmdb || '', imdb: p.ProviderIds?.Imdb || p.ProviderIds?.imdb || '', name: p.Name };
+  // Start loading the filmography right away so the tab opens instantly.
+  state.filmP = Promise.all([
+    fetch(`/api/person?${qs(ids)}`).then((r) => r.json()).catch(() => ({ ok: false, reason: 'error' })),
+    owned().catch(() => new Map()),
+  ]).then(([film, own]) => {
+    state.film = film; state.own = own;
+    if (film.ok) {
+      // Fill in what Jellyfin's cast lists missed but the library has.
+      const have = new Set(state.libItems.map((i) => i.Id));
+      const extra = [...film.movies, ...film.tv, ...film.directing].map((c) => own.get(c.type + c.id)).filter((it) => it && !have.has(it.Id) && have.add(it.Id));
+      if (extra.length) {
+        state.libItems = [...state.libItems, ...extra].sort((a, b) => (b.PremiereDate || String(b.ProductionYear || '')).localeCompare(a.PremiereDate || String(a.ProductionYear || '')));
+        const n = $('#pp-lib-n'); if (n) n.textContent = state.libItems.length;
+        if (state.tab === 'lib') draw();
+      }
+      if (!p.Overview && film.bio && $('#pp-bio')) $('#pp-bio').textContent = film.bio;
+      if (!$('#pp-facts')?.children.length && film.birthday) $('#pp-facts').innerHTML = [`Born ${longDate(film.birthday)}${film.deathday ? '' : ` (age ${age(film.birthday)})`}`, film.deathday ? `Died ${longDate(film.deathday)}` : '', film.place].filter(Boolean).map((f) => `<span>${esc(f)}</span>`).join('');
+      if (!photo && film.photo) $('.pp-photo').innerHTML = imgTag(`https://image.tmdb.org/t/p/w300${film.photo}`, initials, initials);
+    }
+    if (state.tab === 'all') draw();
+  });
+  const draw = () => {
+    const body = $('#pp-body');
+    if (!body) return;
+    $('#pp-tabs').querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
+    if (state.tab === 'lib') {
+      body.innerHTML = state.libItems.length ? `<div class="grid">${state.libItems.map(posterCard).join('')}</div>` : `<p class="empty">Nothing in your library with ${esc(p.Name)} yet.</p>`;
+      return;
+    }
+    const f = state.film;
+    if (!f) { body.innerHTML = '<div class="loading" style="min-height:30vh"><div class="spin"></div></div>'; return; }
+    if (!f.ok) {
+      const ext = ids.tmdb ? `https://www.themoviedb.org/person/${ids.tmdb}` : ids.imdb ? `https://www.imdb.com/name/${ids.imdb}/` : `https://www.themoviedb.org/search/person?query=${encodeURIComponent(p.Name)}`;
+      const why = f.reason === 'nokey' ? 'Add a free TMDB API key to see the full filmography here.' : f.reason === 'badkey' ? 'TMDB didn’t accept the API key. Check the key file.' : f.reason === 'notfound' ? `Couldn’t find ${esc(p.Name)} on TMDB.` : 'Couldn’t reach TMDB right now.';
+      body.innerHTML = `<p class="empty">${why}<br><br><a class="btn" href="${ext}" target="_blank" rel="noopener">Open on ${ids.tmdb || !ids.imdb ? 'TMDB' : 'IMDb'}</a></p>`;
+      return;
+    }
+    const kinds = [['movies', 'Movies', f.movies], ['tv', 'TV', f.tv], ['directing', 'Directing', f.directing], ['writing', 'Writing', f.writing]].filter(([, , l]) => l.length);
+    if (!kinds.length) { body.innerHTML = '<p class="empty">TMDB has no credits for them.</p>'; return; }
+    if (!state.kind || !kinds.some(([k]) => k === state.kind)) state.kind = f.department === 'Directing' && f.directing.length ? 'directing' : kinds[0][0];
+    const list = kinds.find(([k]) => k === state.kind)[2];
+    const ownedCount = list.filter((c) => state.own.has(c.type + c.id)).length;
+    body.innerHTML = `<div class="pp-sub"><div class="chips glass" id="pp-kinds">${kinds.map(([k, label, l]) => `<button data-kind="${k}" class="${k === state.kind ? 'on' : ''}">${label} <span class="n">${l.length}</span></button>`).join('')}</div>
+      <span class="muted">${ownedCount ? `You have ${ownedCount} of ${list.length}` : ''}</span></div>
+      <div class="grid">${list.map((c) => filmCard(c, state.own.get(c.type + c.id))).join('')}</div>
+      <p class="attrib">Filmography from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>`;
+  };
+  $('#pp-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tab]');
+    if (!b) return;
+    state.tab = b.dataset.tab;
+    history.replaceState(null, '', `#/person/${id}${state.tab === 'all' ? '?tab=all' : ''}`);
+    draw();
+  });
+  $('#pp-body').addEventListener('click', (e) => {
+    const b = e.target.closest('#pp-kinds [data-kind]');
+    if (!b) return;
+    state.kind = b.dataset.kind;
+    draw();
+    $(`#pp-kinds [data-kind="${state.kind}"]`)?.focus({ preventScroll: true });
+  });
+  draw();
+}
+function filmCard(c, it) {
+  const src = c.poster ? `https://image.tmdb.org/t/p/w342${c.poster}` : '';
+  const sub = [c.year, c.role, c.episodes && c.type === 'tv' ? `${c.episodes} ep${c.episodes > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+  const link = it ? `href="${href(it)}"` : `href="https://www.themoviedb.org/${c.type}/${c.id}" target="_blank" rel="noopener"`;
+  return `<a class="card${it ? ' owned' : ' missing'}" ${link}>
+    <div class="art">${imgTag(src, c.title, c.title)}${it ? `<span class="tag" title="In your library">${ICON.check}</span>` : ''}${it ? progressBar(it) : ''}</div>
+    <div class="cap"><b>${esc(c.title)}</b><small>${esc(sub || 'Upcoming')}</small></div></a>`;
 }
 
 /* ---------- search ---------- */
@@ -448,6 +575,7 @@ async function runSearch(q) {
   credits = credits.filter((c) => !seen.has(c.Id));
   let html = '';
   if (titles.Items?.length) html += `<div class="grid">${titles.Items.map(posterCard).join('')}</div>`;
+  if (people.Items?.length) html += `<div style="margin:${html ? '24px' : '0'} calc(-1 * var(--pad)) 0"><section class="row"><div class="row-head"><h2>People</h2></div><div class="scroller">${people.Items.map(personCard).join('')}</div></section></div>`;
   if (credits.length) html += `<div style="margin:0 calc(-1 * var(--pad))">${rowHtml(`With ${people.Items[0].Name}`, credits)}</div>`;
   if (eps.Items?.length) html += `<div style="margin:24px calc(-1 * var(--pad)) 0">${rowHtml('Episodes', eps.Items, 'wide')}</div>`;
   box.innerHTML = html || `<p class="empty">No results for “${esc(q)}”.</p>`;
@@ -915,6 +1043,7 @@ async function route() {
     if (parts[0] === 'library') await renderLibrary(parts[1]);
     else if (parts[0] === 'item') await renderItem(parts[1], params);
     else if (parts[0] === 'search') renderSearch(params);
+    else if (parts[0] === 'person') await renderPerson(parts[1], params);
     else await renderHome();
   } catch (e) {
     if (token === routeToken && session) view.innerHTML = `<div class="page"><p class="empty">${esc(e.message || 'Something went wrong')}<br><br><a class="btn" href="#/">Go home</a></p></div>`;
