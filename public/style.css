@@ -279,7 +279,12 @@ svg text { fill: currentColor; stroke: none; font: 700 7px sans-serif; }
 
 /* ---------- search ---------- */
 .searchbox { display: flex; align-items: center; gap: 10px; padding: 0 18px; border-radius: 20px; margin-bottom: 22px; max-width: 720px; }
-.searchbox input { flex: 1; min-width: 0; padding: 15px 0; border: 0; background: none; font-size: 1.15em; }
+.searchbox { transition: border-color .15s, box-shadow .15s; }
+.searchbox input { flex: 1; min-width: 0; padding: 15px 0; border: 0; background: none; font-size: 1.15em; outline: none; }
+.searchbox input:focus-visible { outline: none; }
+.searchbox input::-webkit-search-cancel-button { -webkit-appearance: none; }
+/* The whole bar lights up softly instead of a box around the text. */
+.searchbox:focus-within { border-color: rgba(183,148,255,.55); box-shadow: var(--glass-shadow), 0 0 0 4px rgba(183,148,255,.14); }
 .searchbox svg { color: var(--muted); }
 
 /* ---------- player ---------- */
