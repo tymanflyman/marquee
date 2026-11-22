@@ -1,0 +1,27 @@
+# Marquee on ZimaOS: a custom front end for Jellyfin.
+name: marquee
+services:
+  marquee:
+    image: node:22-alpine
+    container_name: marquee
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "server.js"]
+    ports:
+      - "8098:8098"
+    environment:
+      # Jellyfin's port on ZimaOS. Change to 8096 if you moved Jellyfin back to the default.
+      JELLYFIN_URL: http://host.docker.internal:8097
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /DATA/AppData/marquee/app:/app:ro
+
+  # Checks GitHub every 5 minutes. The server restarts itself when new code lands.
+  updater:
+    image: alpine/git
+    container_name: marquee-updater
+    restart: unless-stopped
+    entrypoint: ["sh", "-c", "while true; do git -C /app pull -q --ff-only || true; sleep 300; done"]
+    volumes:
+      - /DATA/AppData/marquee/app:/app
