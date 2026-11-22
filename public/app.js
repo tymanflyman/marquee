@@ -587,6 +587,7 @@ const P = {
   audio: null, sub: -1, bitrate: store.get('bitrate', 0), reportTimer: null, idleTimer: null, nextEp: null, upnextShown: false,
   offset: 0,
 };
+const SAFARI = /Safari\//.test(navigator.userAgent) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|Android/.test(navigator.userAgent);
 const BITRATES = [[0, 'Auto (best)'], [40e6, '40 Mbps · 4K'], [20e6, '20 Mbps · 1080p'], [10e6, '10 Mbps · 1080p'], [4e6, '4 Mbps · 720p'], [1.5e6, '1.5 Mbps · 480p']];
 function deviceProfile(maxBitrate) {
   const v = document.createElement('video');
@@ -615,6 +616,7 @@ function deviceProfile(maxBitrate) {
       { Type: 'Video', Codec: 'h264', Conditions: [{ Condition: 'LessThanEqual', Property: 'VideoBitDepth', Value: '8', IsRequired: false }] },
     ],
     SubtitleProfiles: [
+      ...(SAFARI ? [{ Format: 'vtt', Method: 'Hls' }] : []),
       { Format: 'vtt', Method: 'External' },
       { Format: 'ass', Method: 'Encode' }, { Format: 'ssa', Method: 'Encode' },
       { Format: 'pgssub', Method: 'Encode' }, { Format: 'dvdsub', Method: 'Encode' }, { Format: 'dvbsub', Method: 'Encode' },
@@ -698,10 +700,9 @@ async function load(startSec) {
   $('#p-mode').textContent = P.method === 'DirectPlay' ? 'Direct play' : P.method === 'DirectStream' ? 'Direct stream' : 'Transcoding' + (reasons.length ? ' · ' + reasonText(reasons[0]) : '');
   const isHls = /\.m3u8/i.test(url);
   P.offset = 0;
-  // Safari plays HLS best on its own; everywhere else hls.js is more reliable.
-  const safari = /Safari\//.test(navigator.userAgent) && !/Chrome|Chromium|CriOS|Android/.test(navigator.userAgent);
+  // Safari plays HLS best on its own (and can AirPlay it); everywhere else hls.js is more reliable.
   const nativeHls = !!v.canPlayType('application/vnd.apple.mpegurl');
-  if (isHls && !(safari && nativeHls) && window.Hls?.isSupported()) {
+  if (isHls && !(SAFARI && nativeHls) && window.Hls?.isSupported()) {
     P.hls = new Hls({ startPosition: startSec, maxBufferLength: 40, backBufferLength: 60, xhrSetup: (x) => x.setRequestHeader('Authorization', authHeader()) });
     P.hls.loadSource(url);
     P.hls.attachMedia(v);
@@ -714,6 +715,11 @@ async function load(startSec) {
   } else {
     v.src = url;
     v.addEventListener('loadedmetadata', () => { if (startSec > 1 && v.currentTime < 1 && startSec < v.duration - 5) v.currentTime = startSec; }, { once: true });
+  }
+  // Subtitles carried inside Safari's HLS stream arrive as text tracks; switch on the chosen one.
+  if (SAFARI && sub?.DeliveryMethod === 'Hls') {
+    const pick = () => { for (const t of v.textTracks) if (t.kind === 'subtitles' || t.kind === 'captions') { t.mode = 'showing'; return true; } return false; };
+    if (!pick()) v.textTracks.addEventListener('addtrack', function once() { if (pick()) v.textTracks.removeEventListener('addtrack', once); });
   }
   try { await v.play(); } catch { P.el.classList.add('paused'); }
   reportStart();
@@ -757,6 +763,7 @@ async function closePlayer(silent) {
   reportStop();
   stopHls();
   P.item = null; P.source = null;
+  P.el.classList.remove('airplaying');
   P.el.classList.add('hidden');
   document.body.classList.remove('locked');
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -770,7 +777,7 @@ const v = P.video;
 function poke() {
   P.el.classList.remove('idle');
   clearTimeout(P.idleTimer);
-  P.idleTimer = setTimeout(() => { if (!v.paused && $('#p-sheet').classList.contains('hidden')) P.el.classList.add('idle'); }, 3200);
+  P.idleTimer = setTimeout(() => { if (!v.paused && !P.el.classList.contains('airplaying') && $('#p-sheet').classList.contains('hidden')) P.el.classList.add('idle'); }, 3200);
 }
 const duration = () => (Number.isFinite(v.duration) && v.duration > 0 ? v.duration : ticks(P.item?.RunTimeTicks));
 function paint() {
@@ -826,6 +833,18 @@ $('#p-full').addEventListener('click', () => {
   else if (P.el.requestFullscreen) P.el.requestFullscreen().catch(() => {});
   else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
 });
+// AirPlay (Safari only). Safari plays our streams natively, so the Apple TV can pull them straight from the server.
+if (window.WebKitPlaybackTargetAvailabilityEvent) {
+  v.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => { $('#p-airplay').hidden = e.availability !== 'available'; });
+  v.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+    const on = !!v.webkitCurrentPlaybackTargetIsWireless;
+    P.el.classList.toggle('airplaying', on);
+    $('#p-airplay').classList.toggle('on', on);
+    toast(on ? 'Playing on Apple TV' : 'Back on this device');
+    reportProgress();
+  });
+  $('#p-airplay').addEventListener('click', () => v.webkitShowPlaybackTargetPicker());
+}
 P.el.addEventListener('pointermove', poke);
 P.el.addEventListener('click', (e) => {
   if (e.target === v || e.target.classList.contains('p-ui') || e.target.classList.contains('p-center')) {

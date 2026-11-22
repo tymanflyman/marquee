@@ -54,7 +54,8 @@
 
   <!-- player -->
   <section id="player" class="hidden" aria-label="Player">
-    <video id="video" playsinline preload="auto"></video>
+    <video id="video" playsinline preload="auto" x-webkit-airplay="allow"></video>
+    <div class="p-airplaying" id="p-airplaying"><svg viewBox="0 0 24 24"><path d="M6 17H4.5A1.5 1.5 0 0 1 3 15.5v-10A1.5 1.5 0 0 1 4.5 4h15A1.5 1.5 0 0 1 21 5.5v10a1.5 1.5 0 0 1-1.5 1.5H18"/><path d="m12 15 5 6H7z"/></svg><b>Playing on Apple TV</b><small>Use these controls or your Apple TV remote</small></div>
     <div class="p-spinner" id="p-spinner"><i></i></div>
     <div class="p-ui" id="p-ui">
       <div class="p-top">
@@ -77,6 +78,7 @@
           <span class="p-mode" id="p-mode"></span>
           <span id="p-left">-0:00</span>
           <button class="icon-btn" id="p-next" aria-label="Next episode" hidden><svg viewBox="0 0 24 24"><path d="M5 5v14l10-7zM19 5v14"/></svg></button>
+          <button class="icon-btn" id="p-airplay" aria-label="AirPlay" hidden><svg viewBox="0 0 24 24"><path d="M6 17H4.5A1.5 1.5 0 0 1 3 15.5v-10A1.5 1.5 0 0 1 4.5 4h15A1.5 1.5 0 0 1 21 5.5v10a1.5 1.5 0 0 1-1.5 1.5H18"/><path d="m12 15 5 6H7z"/></svg></button>
           <button class="icon-btn" id="p-full" aria-label="Fullscreen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
         </div>
       </div>
