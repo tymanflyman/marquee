@@ -625,7 +625,8 @@ async function reportStop() {
 async function closePlayer(silent) {
   if (P.el.classList.contains('hidden')) return;
   const back = P.item;
-  await reportStop();
+  // Tell Jellyfin in the background; it can take a moment to save the position and stop the transcode.
+  reportStop();
   stopHls();
   P.item = null; P.source = null;
   P.el.classList.add('hidden');
@@ -667,7 +668,8 @@ function showUpNext() {
 function playNext() {
   if (!P.nextEp) return;
   const id = P.nextEp.Id;
-  reportStop().then(() => location.replace(`#/play/${id}`));
+  reportStop();
+  location.replace(`#/play/${id}`);
 }
 function seekTo(sec) {
   const d = duration();
