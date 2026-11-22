@@ -787,8 +787,16 @@ async function closePlayer(silent) {
   document.body.classList.remove('locked');
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   if (!silent && location.hash.startsWith('#/play/')) {
-    if (history.length > 1 && sessionStorage.getItem('mq-in-app')) history.back();
-    else location.replace(back ? `#/item/${back.Id}` : '#/');
+    // Go back to the page the video was opened from. Safari doesn't always report going
+    // back to the plain home address, so check shortly after and go there directly if needed.
+    const target = returnTo || (back ? `#/item/${back.Id}` : '#/');
+    if (history.length > 1 && sessionStorage.getItem('mq-in-app')) {
+      history.back();
+      setTimeout(() => {
+        if (location.hash.startsWith('#/play/')) location.replace(target);
+        else if (currentHash() !== routedHash) route();
+      }, 350);
+    } else location.replace(target);
   }
 }
 /* controls */
@@ -1064,9 +1072,14 @@ $('#login-form').addEventListener('submit', async (e) => {
 
 /* ---------- router ---------- */
 let routeToken = 0;
+let routedHash = null; // the page currently shown
+let returnTo = null; // the last page that wasn't the player
+const currentHash = () => (location.hash && location.hash !== '#' ? location.hash : '#/');
 async function route() {
   if (!session) return;
   const token = ++routeToken;
+  routedHash = currentHash();
+  if (!routedHash.startsWith('#/play/')) returnTo = routedHash;
   const raw = location.hash.slice(1) || '/';
   const [p, query = ''] = raw.split('?');
   const params = new URLSearchParams(query);
@@ -1088,7 +1101,10 @@ async function route() {
   }
   if (document.body.classList.contains('remote') && token === routeToken) setTimeout(() => { if (!view.contains(document.activeElement)) moveFocus('down'); }, 60);
 }
-window.addEventListener('hashchange', () => { sessionStorage.setItem('mq-in-app', '1'); route(); });
+// Safari sometimes fires only one of these, so listen to both and route once per change.
+const onNav = () => { sessionStorage.setItem('mq-in-app', '1'); if (currentHash() !== routedHash) route(); };
+window.addEventListener('hashchange', onNav);
+window.addEventListener('popstate', onNav);
 window.addEventListener('scroll', () => $('#topbar').classList.toggle('solid', scrollY > 40), { passive: true });
 
 async function startApp() {
